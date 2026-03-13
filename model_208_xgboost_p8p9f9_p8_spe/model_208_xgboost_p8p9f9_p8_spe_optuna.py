@@ -179,18 +179,19 @@ def objective(trial, raw_df, feature_cols, num_class, device):
                 del params['device']
         except: pass
 
-    # --- C. 交叉验证 ---
-    # 使用 f1_macro 以应对类别不平衡
-    clf = xgb.XGBClassifier(**params)
-    
-    # 3折交叉验证，速度优先
-    #cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
-    cv = TimeSeriesSplit(n_splits=5)
-    
+    # ---- C) GroupKFold 按天交叉验证，macro-F1 ----
+    gkf = GroupKFold(n_splits=5)
+    f1s = []
     try:
-        scores = cross_val_score(clf, X, y, cv=cv, scoring='f1_macro')
-        return scores.mean()
+        for tr_idx, va_idx in gkf.split(X, y, groups=g):
+            clf = xgb.XGBClassifier(**params)
+            clf.fit(X[tr_idx], y[tr_idx])
+
+            pred = clf.predict(X[va_idx])
+            f1s.append(f1_score(y[va_idx], pred, average="macro"))
+        return float(np.mean(f1s))
     except Exception:
+        # 比如 GPU OOM 等
         return 0.0
 
 # ==========================================
