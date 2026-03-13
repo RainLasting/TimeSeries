@@ -11,7 +11,7 @@ import pandas as pd
 import optuna
 import xgboost as xgb
 
-from sklearn.model_selection import GroupKFold
+from sklearn.model_selection import GroupKFold, TimeSeriesSplit, cross_val_score
 from sklearn.metrics import f1_score
 from numpy.lib.stride_tricks import sliding_window_view
 from scipy.ndimage import gaussian_filter
@@ -20,12 +20,12 @@ warnings.filterwarnings("ignore")
 optuna.logging.set_verbosity(optuna.logging.WARNING)
 
 # ==========================================
-# 1) 单模型：p_other 预测所有类（多分类）
+# 1) 单模型：all_with_workday 预测所有类（多分类）
 # ==========================================
 
-MODEL_NAME = "p_other"
+MODEL_NAME = "all_with_workday"
 MODEL_DEFINITION = {
-    "cols": ["p8", "p9", "f9", "hour"],
+    "cols": ["p8", "p9", "f9", "is_workday"],
     "objective": "multi:softprob",
     "is_binary": False
 }
@@ -202,19 +202,18 @@ def objective(trial, raw_df, groups_raw, feature_cols, num_class, device):
         except:
             params["device"] = "cuda"
 
-    # ---- C) GroupKFold 按天交叉验证，macro-F1 ----
-    gkf = GroupKFold(n_splits=5)
-    f1s = []
+    # --- C. 交叉验证 ---
+    # 使用 f1_macro 以应对类别不平衡
+    clf = xgb.XGBClassifier(**params)
+    
+    # 3折交叉验证，速度优先
+    #cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+    cv = TimeSeriesSplit(n_splits=5)
+    
     try:
-        for tr_idx, va_idx in gkf.split(X, y, groups=g):
-            clf = xgb.XGBClassifier(**params)
-            clf.fit(X[tr_idx], y[tr_idx])
-
-            pred = clf.predict(X[va_idx])
-            f1s.append(f1_score(y[va_idx], pred, average="macro"))
-        return float(np.mean(f1s))
+        scores = cross_val_score(clf, X, y, cv=cv, scoring='f1_macro')
+        return scores.mean()
     except Exception:
-        # 比如 GPU OOM 等
         return 0.0
 
 # ==========================================

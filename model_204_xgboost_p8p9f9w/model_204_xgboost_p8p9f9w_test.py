@@ -33,7 +33,7 @@ def load_dataset(path, anno_path, label_map):
         df = df.rename(columns={"time": "date", "8p": "p8", "9p": "p9", "9f": "f9"})
 
     # 确保列存在且顺序一致
-    df = df[["date", "p8", "p9", "f9", "hour"]]
+    df = df[["date", "p8", "p9", "f9", "is_workday"]]
     df = df.ffill()
     df["date"] = pd.to_datetime(df["date"].astype(str).apply(lambda x: x.split(".")[0]))
     df["day"] = df["date"].dt.date
@@ -125,12 +125,12 @@ def main():
 
     id_to_name = {v: k for k, v in label_map.items()}
 
-    # 2) 只加载 p_other 模型（单模型全类预测）
-    if "p_other" not in model_configs:
-        logger.error("model_configs.json does not contain 'p_other'. Please retrain with the new training code.")
+    # 2) 只加载 all_with_workday 模型（单模型全类预测）
+    if "all_with_workday" not in model_configs:
+        logger.error("model_configs.json does not contain 'all_with_workday'. Please retrain with the new training code.")
         return
 
-    cfg = model_configs["p_other"]
+    cfg = model_configs["all_with_workday"]
     model_path = Path(cfg["model_path"])
     if not model_path.exists():
         logger.error(f"Model file not found: {model_path}")

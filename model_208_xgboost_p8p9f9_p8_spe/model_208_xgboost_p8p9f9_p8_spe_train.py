@@ -15,23 +15,28 @@ from scipy.ndimage import gaussian_filter
 warnings.filterwarnings("ignore")
 
 # ==========================================
-# 1. 模型配置
+# 1. 模型定义与任务分工
 # ==========================================
+# "反冲洗": 1, "9井关井": 2, "短暂放气": 3, "设备启动": 4, "设备停机": 5, "9井开井": 6
 
 MODEL_DEFINITIONS = {
+    # 专家 1：看 3 个变量，只负责判断 1(反冲洗), 2(关井), 6(开井)
     "p8p9f9": {
         "cols": ["p8", "p9", "f9"],
-        "objective": "multi:softprob", # 软投票必须用软概率输出
+        "target_classes": [1, 2, 6],
+        "objective": "multi:softprob", 
         "is_binary": False
     },
+    # 专家 2：只看 P8，只负责判断 3(短暂放气), 4(设备启动), 5(设备停机)
     "p8": {
         "cols": ["p8"],
+        "target_classes": [3, 4, 5],
         "objective": "multi:softprob",
         "is_binary": False
     }
 }
 
-# 你的超参数配置 (保持不变)
+# 固定的超参数配置 (直接使用你之前 Optuna 或手动调优出的最佳参数)
 HYPERPARAMS = {
     "p8p9f9": {
             "window_size": 150,
@@ -64,7 +69,7 @@ HYPERPARAMS = {
 }
 
 # ==========================================
-# 2. 核心修改：基于全局配置构建映射
+# 2. 数据处理与特征构建
 # ==========================================
 
 def setup_logger(output_dir):
@@ -88,34 +93,23 @@ def load_dataset(path, anno_path, label_map):
     df = df.ffill()
     df['date'] = pd.to_datetime(df['date'].astype(str).apply(lambda x: x.split(".")[0]))
     df['day'] = df['date'].dt.date
-    #.apply(lambda x: x.replace(year=2025))
+    #.apply(lambda x: x.replace(year=2025)) # 如有需要可取消注释
 
     annodata = pd.read_excel(anno_path)
     annodata['time'] = pd.to_datetime(annodata['time']).dt.date
     annodata['typea'] = annodata['type'].map(label_map)
     return df, annodata
 
-def build_contiguous_class_mapping_global(label_map):
-    """
-    【修改点】根据 label.json 构建全局映射，而不是根据训练数据。
-    这样保证了所有模型的输出维度一致，即使某些类别在训练集中未出现。
-    """
-    # 获取 label_map 中定义的所有 ID (包括 0，如果没有需手动补 0)
-    defined_ids = set(label_map.values())
-    if 0 not in defined_ids:
-        defined_ids.add(0) # 确保背景类 0 存在
-    
-    # 排序：0, 1, 2, ..., 7
-    all_labels = sorted(list(defined_ids))
-    
-    # 构建映射： 真实ID -> 连续索引 (0..K-1)
+def build_local_class_mapping(target_classes):
+    """为当前模型建立专属的连续类别映射"""
+    all_labels = [0] + sorted(target_classes)
     old_to_new = {old: new for new, old in enumerate(all_labels)}
     new_to_old = {new: old for old, new in old_to_new.items()}
     num_class = len(all_labels)
-    
     return old_to_new, new_to_old, num_class
 
-def get_labeled_raw_data_all_classes(df, annodata, feature_cols, old_to_new):
+def get_labeled_raw_data_target_classes(df, annodata, feature_cols, old_to_new):
+    """过滤标注：只提取当前模型负责的类别，其他异常全部视为背景 0"""
     days = sorted(list(set(df["day"])))
     data_list = []
     for t in days:
@@ -126,21 +120,19 @@ def get_labeled_raw_data_all_classes(df, annodata, feature_cols, old_to_new):
         day_annos = annodata[annodata['time'] == t]
         for _, row in day_annos.iterrows():
             if pd.isna(row.get('typea')): continue
-
             s, e = int(row['start']), int(row['end'])
             s, e = max(0, s), min(len(sub) - 1, e)
-
             old_label = int(row['typea'])
-            # 只有在映射表中存在的标签才会被标记
+            
+            # 如果标签在当前模型的负责范围内 (在 old_to_new 字典中)
             if old_label in old_to_new:
                 new_label = old_to_new[old_label]
                 if e >= s:
                     sub.loc[s:e, 'anno'] = new_label
-
+                    
         data_list.append(sub)
 
     if not data_list: return pd.DataFrame()
-
     full_df = pd.concat(data_list, axis=0).reset_index(drop=True)
     full_df['anno'] = full_df['anno'].astype(int)
     return full_df
@@ -164,7 +156,6 @@ def build_features(raw_df, feature_cols, sigma, window_size, step_size):
     real_window_len = window_size * num_feat
     slice_step = num_feat * step_size
 
-    # 
     X = sliding_window_view(flattened, window_shape=real_window_len)[::slice_step]
     y = label[::step_size]
 
@@ -177,7 +168,7 @@ def build_features(raw_df, feature_cols, sigma, window_size, step_size):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--train_data", type=str, default="../data/data3.csv")
+    parser.add_argument("--train_data", type=str, default="../data/data3_hour_workday.csv")
     parser.add_argument("--anno_path", type=str, default="../data/anno_data9.0_2021.xlsx")
     parser.add_argument("--label_map_path", type=str, default="../data/label_new.json")
     parser.add_argument("--output_dir", type=str, default="./saved_models")
@@ -193,25 +184,27 @@ def main():
     logger.info("Loading Training Data...")
     df_train, annodata = load_dataset(args.train_data, args.anno_path, label_map)
 
-    # === 关键修改 ===
-    # 使用 label_map (全局配置) 来生成映射，而不是 annodata (局部数据)
-    old_to_new, new_to_old, num_class = build_contiguous_class_mapping_global(label_map)
-    logger.info(f"Global Class Mapping Established. Total Classes: {num_class}")
-    logger.info(f"Mapping (New -> Old): {new_to_old}")
-
     final_configs = {}
     start_all_train = time.time()
 
-    # 训练 P8、P9、F9
+    # 循环训练每一个专家模型
     for model_name, def_cfg in MODEL_DEFINITIONS.items():
-        logger.info(f"--- Training Model: {model_name} ---")
+        logger.info(f"\n{'='*40}")
+        logger.info(f"--- Training Expert Model: {model_name} ---")
+        logger.info(f"Target Classes: {def_cfg['target_classes']}")
         
+        # 提取当前模型的超参数
         params = HYPERPARAMS[model_name].copy()
         win = params.pop("window_size")
         sig = params.pop("sigma")
         actual_step = params.pop("actual_step")
 
-        raw_df = get_labeled_raw_data_all_classes(
+        # 为当前模型构建专属局部映射
+        old_to_new, new_to_old, num_class = build_local_class_mapping(def_cfg["target_classes"])
+        logger.info(f"Local Class Mapping (New -> Old): {new_to_old} (Total {num_class} classes)")
+
+        # 过滤数据：非目标类的异常全视为正常(0)
+        raw_df = get_labeled_raw_data_target_classes(
             df_train, annodata, def_cfg["cols"], old_to_new
         )
 
@@ -224,21 +217,22 @@ def main():
             logger.error(f"Not enough samples for windowing for {model_name}; abort.")
             continue
 
-        # 检查训练集中是否包含所有标签
+        # 检查训练集中是否包含所有负责的标签
         unique_y = np.unique(y)
         missing_labels = set(range(num_class)) - set(unique_y)
         if missing_labels:
-            logger.warning(f"Warning: Model {model_name} training data is missing classes (internal IDs): {missing_labels}. Probability for these will be 0.")
+            logger.warning(f"Warning: Model {model_name} training data is missing mapped classes: {missing_labels}.")
 
         xgb_params = params.copy()
         xgb_params.update({
-            "objective": def_cfg["objective"], # 确保是 multi:softprob
-            "num_class": num_class,            # 强制指定全局类别数
+            "objective": def_cfg["objective"], 
+            "num_class": num_class, 
             "tree_method": "hist",
-            "device": args.device
+            "device": args.device,
+            "n_jobs": -1
         })
         
-        # GPU 兼容性
+        # GPU 兼容性处理
         if args.device == 'cuda':
             try:
                 if float(xgb.__version__.split('.')[0]) < 2:
@@ -255,14 +249,15 @@ def main():
         joblib.dump(clf, save_path)
         logger.info(f"Model {model_name} saved to {save_path} (train_time={duration:.2f}s)")
 
-        # 保存配置 (关键是 new_to_old，测试脚本需要它来还原)
+        # 保存配置 (测试脚本会依赖 new_to_old 来进行软投票矩阵拼图)
         final_configs[model_name] = {
             "model_path": str(save_path),
             "cols": def_cfg["cols"],
             "win": win,
             "sig": sig,
+            "actual_step": actual_step,
             "num_class": num_class,
-            "new_to_old": new_to_old # 必须保存
+            "new_to_old": new_to_old
         }
 
     config_path = Path(args.output_dir) / "model_configs.json"
@@ -270,7 +265,7 @@ def main():
         json.dump(final_configs, f, indent=4)
 
     total_duration = time.time() - start_all_train
-    logger.info(f"Total training process took: {total_duration:.2f} seconds")
+    logger.info(f"\nTotal training process took: {total_duration:.2f} seconds")
     logger.info("Training Complete.")
 
 if __name__ == "__main__":

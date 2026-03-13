@@ -177,9 +177,9 @@ def build_features(raw_df, feature_cols, sigma, window_size, step_size):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--train_data", type=str, default="../data/data3.csv")
+    parser.add_argument("--train_data", type=str, default="../data/data3_hour_workday.csv")
     parser.add_argument("--anno_path", type=str, default="../data/anno_data9.0_2021.xlsx")
-    parser.add_argument("--label_map_path", type=str, default="../data/label_new.json")
+    parser.add_argument("--label_map_path", type=str, default="../data/label.json")
     parser.add_argument("--output_dir", type=str, default="./saved_models")
     parser.add_argument("--device", type=str, default="cuda", choices=["cpu", "cuda"])
     args = parser.parse_args()

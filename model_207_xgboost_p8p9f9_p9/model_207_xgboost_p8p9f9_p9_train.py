@@ -24,8 +24,8 @@ MODEL_DEFINITIONS = {
         "objective": "multi:softprob", # 软投票必须用软概率输出
         "is_binary": False
     },
-    "p8": {
-        "cols": ["p8"],
+    "p9": {
+        "cols": ["p9"],
         "objective": "multi:softprob",
         "is_binary": False
     }
@@ -47,7 +47,7 @@ HYPERPARAMS = {
             "reg_alpha": 0.01640328102507082,
             "reg_lambda": 0.0002497828561420395
     },
-    "p8": {
+    "p9": {
             "window_size": 310,
             "sigma": 45,
             "actual_step": 16,
@@ -177,9 +177,9 @@ def build_features(raw_df, feature_cols, sigma, window_size, step_size):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--train_data", type=str, default="../data/data3.csv")
+    parser.add_argument("--train_data", type=str, default="../data/data3_hour_workday.csv")
     parser.add_argument("--anno_path", type=str, default="../data/anno_data9.0_2021.xlsx")
-    parser.add_argument("--label_map_path", type=str, default="../data/label_new.json")
+    parser.add_argument("--label_map_path", type=str, default="../data/label.json")
     parser.add_argument("--output_dir", type=str, default="./saved_models")
     parser.add_argument("--device", type=str, default="cuda", choices=["cpu", "cuda"])
     args = parser.parse_args()
@@ -202,7 +202,6 @@ def main():
     final_configs = {}
     start_all_train = time.time()
 
-    # 训练 P8、P9、F9
     for model_name, def_cfg in MODEL_DEFINITIONS.items():
         logger.info(f"--- Training Model: {model_name} ---")
         

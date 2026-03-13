@@ -15,11 +15,11 @@ from scipy.ndimage import gaussian_filter
 warnings.filterwarnings("ignore")
 
 # ==========================================
-# 1. 单模型配置：p_other 预测所有类
+# 1. all_wh 预测所有类
 # ==========================================
 
 MODEL_DEFINITIONS = {
-    "p_other": {
+    "all_wh": {
         "cols": ["p8", "p9", "f9", "hour", "is_workday"],
         # 预测所有类 -> 多分类概率输出
         "objective": "multi:softprob",
@@ -28,9 +28,8 @@ MODEL_DEFINITIONS = {
     }
 }
 
-# 你原来的 p_other 超参可以沿用（但 binary 相关的 scale_pos_weight 通常不再适用）
 HYPERPARAMS = {
-    "p_other": {
+    "all_wh": {
         "window_size": int(100 * 1.0), "sigma": int(13 * 1.0), "actual_step": int(10 * 1.0),
         "subsample": 0.8854, "colsample_bytree": 0.9898, "gamma": 3.3655,
         "reg_alpha": 0.9308, "reg_lambda": 0.5164, "n_estimators": 1200,
@@ -188,8 +187,7 @@ def main():
 
     start_all_train = time.time()
 
-    # 只训练一个模型：p_other
-    model_name = "p_other"
+    model_name = "all_wh"
     def_cfg = MODEL_DEFINITIONS[model_name]
     logger.info(f"--- Training Model: {model_name} (ALL-CLASS) ---")
 

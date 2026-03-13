@@ -8,9 +8,10 @@ import time
 import joblib
 import numpy as np
 import pandas as pd
+from sklearn.metrics import f1_score
 import xgboost as xgb
 import optuna
-from sklearn.model_selection import cross_val_score, StratifiedKFold
+from sklearn.model_selection import GroupKFold, TimeSeriesSplit, cross_val_score, StratifiedKFold
 from numpy.lib.stride_tricks import sliding_window_view
 from scipy.ndimage import gaussian_filter
 
@@ -27,8 +28,8 @@ MODEL_DEFINITIONS = {
         "objective": "multi:softprob", # 软投票必须用软概率输出
         "is_binary": False
     },
-    "p8": {
-        "cols": ["p8"],
+    "p9": {
+        "cols": ["p9"],
         "objective": "multi:softprob",
         "is_binary": False
     }
@@ -149,7 +150,7 @@ def objective(trial, raw_df, feature_cols, num_class, device):
         return 0.0
 
     # --- B. 搜索 XGBoost 参数 ---
-    param = {
+    params = {
         'objective': 'multi:softprob',
         'num_class': num_class,
         'tree_method': 'hist',
@@ -172,16 +173,17 @@ def objective(trial, raw_df, feature_cols, num_class, device):
     if device == 'cuda':
         try:
             if float(xgb.__version__.split('.')[0]) < 2:
-                param['tree_method'] = 'gpu_hist'
-                del param['device']
+                params['tree_method'] = 'gpu_hist'
+                del params['device']
         except: pass
 
     # --- C. 交叉验证 ---
     # 使用 f1_macro 以应对类别不平衡
-    clf = xgb.XGBClassifier(**param)
+    clf = xgb.XGBClassifier(**params)
     
     # 3折交叉验证，速度优先
-    cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+    #cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+    cv = TimeSeriesSplit(n_splits=5)
     
     try:
         scores = cross_val_score(clf, X, y, cv=cv, scoring='f1_macro')
@@ -195,8 +197,8 @@ def objective(trial, raw_df, feature_cols, num_class, device):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--train_data", type=str, default="../data/data3.csv")
-    parser.add_argument("--anno_path", type=str, default="../data/anno_data9.0.xlsx")
+    parser.add_argument("--train_data", type=str, default="../data/data3_hour_workday.csv")
+    parser.add_argument("--anno_path", type=str, default="../data/anno_data9.0_2021.xlsx")
     parser.add_argument("--label_map_path", type=str, default="../data/label.json")
     parser.add_argument("--output_dir", type=str, default="./saved_models_optuna")
     parser.add_argument("--n_trials", type=int, default=2, help="Number of trials per model")

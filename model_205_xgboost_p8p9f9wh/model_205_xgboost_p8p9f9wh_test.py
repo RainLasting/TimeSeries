@@ -125,12 +125,12 @@ def main():
 
     id_to_name = {v: k for k, v in label_map.items()}
 
-    # 2) 只加载 p_other 模型（单模型全类预测）
-    if "p_other" not in model_configs:
-        logger.error("model_configs.json does not contain 'p_other'. Please retrain with the new training code.")
+    # 2) 只加载 all_wh 模型（单模型全类预测）
+    if "all_wh" not in model_configs:
+        logger.error("model_configs.json does not contain 'all_wh'. Please retrain with the new training code.")
         return
 
-    cfg = model_configs["p_other"]
+    cfg = model_configs["all_wh"]
     model_path = Path(cfg["model_path"])
     if not model_path.exists():
         logger.error(f"Model file not found: {model_path}")
