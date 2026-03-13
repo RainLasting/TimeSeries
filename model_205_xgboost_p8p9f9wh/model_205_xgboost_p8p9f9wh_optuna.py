@@ -30,9 +30,6 @@ MODEL_DEFINITION = {
     "is_binary": False
 }
 
-def r4(x):  # 保留 4 位
-    return round(float(x), 4)
-
 def setup_logger(output_dir):
     Path(output_dir).mkdir(parents=True, exist_ok=True)
     logger = logging.getLogger("OptunaTrainLogger")
@@ -175,16 +172,16 @@ def objective(trial, raw_df, groups_raw, feature_cols, num_class, device):
 
         "n_estimators": trial.suggest_int("n_estimators", 200, 2000),
         "max_depth": trial.suggest_int("max_depth", 3, 12),
-        "learning_rate": r4(trial.suggest_float("learning_rate", 0.01, 0.3, log=True)),
+        "learning_rate": trial.suggest_float("learning_rate", 0.01, 0.3, log=True),
 
-        "subsample": r4(trial.suggest_float("subsample", 0.5, 1.0)),
-        "colsample_bytree": r4(trial.suggest_float("colsample_bytree", 0.5, 1.0)),
+        "subsample": trial.suggest_float("subsample", 0.5, 1.0),
+        "colsample_bytree": trial.suggest_float("colsample_bytree", 0.5, 1.0),
 
         "min_child_weight": trial.suggest_int("min_child_weight", 1, 10),
-        "gamma": r4(trial.suggest_float("gamma", 0.0, 5.0)),
+        "gamma": trial.suggest_float("gamma", 0.0, 5.0),
 
-        "reg_alpha": r4(trial.suggest_float("reg_alpha", 1e-8, 5.0, log=True)),
-        "reg_lambda": r4(trial.suggest_float("reg_lambda", 1e-8, 5.0, log=True)),
+        "reg_alpha": trial.suggest_float("reg_alpha", 1e-8, 5.0, log=True),
+        "reg_lambda": trial.suggest_float("reg_lambda", 1e-8, 5.0, log=True),
 
         "random_state": 42,
         "n_jobs": -1,
@@ -223,9 +220,9 @@ def objective(trial, raw_df, groups_raw, feature_cols, num_class, device):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--train_data", type=str, default="../data/data3_workday.csv")
+    parser.add_argument("--train_data", type=str, default="../data/data3_hour_workday.csv")
     parser.add_argument("--anno_path", type=str, default="../data/anno_data9.0_2021.xlsx")
-    parser.add_argument("--label_map_path", type=str, default="../data/label_new.json")
+    parser.add_argument("--label_map_path", type=str, default="../data/label.json")
     parser.add_argument("--output_dir", type=str, default="./saved_models_optuna")
     parser.add_argument("--n_trials", type=int, default=2)
     parser.add_argument("--device", type=str, default="cuda", choices=["cpu", "cuda"])
@@ -328,12 +325,12 @@ def main():
             "win": best_win,
             "sig": best_sig,
             "actual_step": best_actual_step,
-            "step_rate": r4(best_step_rate),
+            "step_rate": (best_step_rate),
             "num_class": num_class,
             "old_to_new": old_to_new,
             "new_to_old": new_to_old,
-            "best_params": {k: (r4(v) if isinstance(v, float) else int(v)) for k, v in best_params.items()},
-            "cv_score_macro_f1": r4(best_score),
+            "best_params": {k: ((v) if isinstance(v, float) else int(v)) for k, v in best_params.items()},
+            "cv_score_macro_f1": (best_score),
             "model_type": "XGBClassifier_Optuna_TPE"
         }
     }

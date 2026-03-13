@@ -223,9 +223,9 @@ def objective(trial, raw_df, groups_raw, feature_cols, num_class, device):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--train_data", type=str, default="../data/data3_new.csv")
+    parser.add_argument("--train_data", type=str, default="../data/data3_hour_workday.csv")
     parser.add_argument("--anno_path", type=str, default="../data/anno_data9.0_2021.xlsx")
-    parser.add_argument("--label_map_path", type=str, default="../data/label_new.json")
+    parser.add_argument("--label_map_path", type=str, default="../data/label.json")
     parser.add_argument("--output_dir", type=str, default="./saved_models_optuna")
     parser.add_argument("--n_trials", type=int, default=2)
     parser.add_argument("--device", type=str, default="cuda", choices=["cpu", "cuda"])

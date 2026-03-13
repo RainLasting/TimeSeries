@@ -97,7 +97,7 @@ def main():
     parser.add_argument("--test_data", type=str, default="../data/data4_hour_workday.csv")
     parser.add_argument("--anno_path", type=str, default="../data/anno_data9.0_2021.xlsx")
     parser.add_argument("--label_map_path", type=str, default="../data/label.json")
-    parser.add_argument("--model_dir", type=str, default="./saved_models")
+    parser.add_argument("--model_dir", type=str, default="./saved_models_optuna")
     parser.add_argument("--output_excel", type=str, default="soft_voting_report.xlsx")
     args = parser.parse_args()
 
