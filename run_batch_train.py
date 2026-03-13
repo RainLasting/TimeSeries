@@ -30,21 +30,25 @@ def main():
     print("========================================")
     print("批量训练任务开始")
     print(f"任务数量: {total}")
-    print(f"工作目录: {SCRIPT_DIR}")
+    print(f"项目根目录: {SCRIPT_DIR}")
     print("========================================")
 
     for i, task_path in enumerate(TRAINING_TASKS, 1):
         # 使用 Path 拼接完整路径
         script_path = SCRIPT_DIR / task_path
         task_name = script_path.name
+        
+        # 获取脚本所在目录，作为工作目录
+        work_dir = script_path.parent
 
         print(f"\n>>> 进度: {i}/{total} - 正在执行: {task_name}")
         print(f"    脚本路径: {script_path}")
+        print(f"    工作目录: {work_dir}")
 
-        # 执行 Python 脚本
+        # 执行 Python 脚本，在脚本所在目录执行
         result = subprocess.run(
             [sys.executable, str(script_path)],
-            cwd=str(SCRIPT_DIR),  # 在项目根目录下执行
+            cwd=str(work_dir),  # 在脚本所在目录下执行
             capture_output=False
         )
 
