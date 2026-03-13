@@ -227,7 +227,7 @@ def main():
     parser.add_argument("--anno_path", type=str, default="../data/anno_data9.0_2021.xlsx")
     parser.add_argument("--label_map_path", type=str, default="../data/label.json")
     parser.add_argument("--output_dir", type=str, default="./saved_models_optuna")
-    parser.add_argument("--n_trials", type=int, default=2)
+    parser.add_argument("--n_trials", type=int, default=20)
     parser.add_argument("--device", type=str, default="cuda", choices=["cpu", "cuda"])
     args, _ = parser.parse_known_args()
 
