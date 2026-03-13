@@ -19,9 +19,12 @@ warnings.filterwarnings("ignore")
 
 # 重新声明相同的 LSTM 模型类以便加载权重
 class TimeSeriesLSTM(nn.Module):
-    def __init__(self, input_dim, hidden_dim, num_layers, num_classes):
+    def __init__(self, input_dim, hidden_dim, num_layers, num_classes, dropout=0.0):
         super(TimeSeriesLSTM, self).__init__()
-        self.lstm = nn.LSTM(input_dim, hidden_dim, num_layers, batch_first=True)
+        self.hidden_dim = hidden_dim
+        self.num_layers = num_layers
+        self.lstm = nn.LSTM(input_dim, hidden_dim, num_layers, batch_first=True, 
+                           dropout=dropout if num_layers > 1 else 0)
         self.fc = nn.Linear(hidden_dim, num_classes)
 
     def forward(self, x):
@@ -99,10 +102,10 @@ def adjust_predicts(actual: np.ndarray, predicted: np.ndarray) -> np.ndarray:
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--test_data", type=str, default="../data/data4.csv")
+    parser.add_argument("--test_data", type=str, default="../data/data4_hour_workday.csv")
     parser.add_argument("--anno_path", type=str, default="../data/anno_data9.0_2021.xlsx")
     parser.add_argument("--label_map_path", type=str, default="../data/label.json")
-    parser.add_argument("--model_dir", type=str, default="./saved_models")
+    parser.add_argument("--model_dir", type=str, default="./saved_models_lstm_optuna")
     parser.add_argument("--output_excel", type=str, default="test_report.xlsx")
     parser.add_argument("--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu", choices=["cpu", "cuda"])
     args = parser.parse_args()
@@ -139,11 +142,13 @@ def main():
     sig = int(cfg["sig"])
     
     # 构建并加载 LSTM 模型
+    dropout = cfg.get("dropout", 0.0)  # 支持 optuna 调优后的 dropout 参数
     model = TimeSeriesLSTM(
         input_dim=len(cols), 
         hidden_dim=cfg["hidden_dim"], 
         num_layers=cfg["num_layers"], 
-        num_classes=cfg["num_class"]
+        num_classes=cfg["num_class"],
+        dropout=dropout
     )
     model.load_state_dict(torch.load(model_path, map_location=device, weights_only=True))
     model.to(device)

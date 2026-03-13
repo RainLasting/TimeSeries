@@ -36,6 +36,7 @@ HYPERPARAMS = {
         # LSTM 专属超参数
         "hidden_dim": 64,       # LSTM 隐藏层维度
         "num_layers": 2,        # LSTM 层数
+        "dropout": 0.0,         # Dropout 比例
         "learning_rate": 0.001, # 学习率
         "epochs": 30,           # 训练轮数
         "batch_size": 256       # 批大小
@@ -47,13 +48,14 @@ HYPERPARAMS = {
 # ==========================================
 
 class TimeSeriesLSTM(nn.Module):
-    def __init__(self, input_dim, hidden_dim, num_layers, num_classes):
+    def __init__(self, input_dim, hidden_dim, num_layers, num_classes, dropout=0.0):
         super(TimeSeriesLSTM, self).__init__()
         self.hidden_dim = hidden_dim
         self.num_layers = num_layers
         
         # batch_first=True 表示输入数据的维度为 (batch, seq, feature)
-        self.lstm = nn.LSTM(input_dim, hidden_dim, num_layers, batch_first=True)
+        self.lstm = nn.LSTM(input_dim, hidden_dim, num_layers, batch_first=True, 
+                           dropout=dropout if num_layers > 1 else 0)
         self.fc = nn.Linear(hidden_dim, num_classes)
 
     def forward(self, x):
@@ -221,11 +223,13 @@ def main():
 
     # 初始化模型
     device = torch.device(args.device)
+    dropout = params.get("dropout", 0.0)
     model = TimeSeriesLSTM(
         input_dim=len(def_cfg["cols"]), 
         hidden_dim=params["hidden_dim"], 
         num_layers=params["num_layers"], 
-        num_classes=num_class
+        num_classes=num_class,
+        dropout=dropout
     ).to(device)
 
     criterion = nn.CrossEntropyLoss()
@@ -274,6 +278,7 @@ def main():
         "num_class": num_class,
         "hidden_dim": params["hidden_dim"],
         "num_layers": params["num_layers"],
+        "dropout": params.get("dropout", 0.0),
         "old_to_new": old_to_new,
         "new_to_old": new_to_old
     }
